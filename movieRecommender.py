@@ -20,13 +20,37 @@ def find_user_ratings(userID):
     user_ratings = ratings_dataframe.query(f"userId == {userID}")
     return user_ratings[["movieId", "rating"]].set_index("movieId") #return user ratings
 
+def find_relative_distance(userId):
+    users = ratings_dataframe["userId"].unique() #find all users
+    users = users[users != userId] #remove passed in user from list of users
+    distances = [find_user_distance(userId, every_other_user_id) for every_other_user_id in users] #find distances between user and all other users
 
+    return pandas.DataFrame(distances, columns=["masterUserId", "userId", "distance"]) #return dataframe of distances between our master user and all other users
+
+def find_closest_users(userId, number_of_users):
+    relative_distances = find_relative_distance(userId)
+    relative_distances.sort_values("distance", inplace=True) #sort distances
+    return relative_distances.head(number_of_users) #return top n closest users
+
+def make_recommendation(userId):
+    user_ratings = find_user_ratings(userId)
+    closest_users = find_closest_users(userId, 10)
+    most_similar_user_id = closest_users.iloc[0]["userId"] #find most similar user
+
+    closest_user_ratings = find_user_ratings(most_similar_user_id) #find most similar user's ratings
+    unwatched_movies = closest_user_ratings.drop(user_ratings.index, errors= "ignore") #find movies the most similar user has watched that the user has not watched
+
+    unwatched_movies = unwatched_movies.sort_values("rating", ascending=False) #sort movies by rating with highest on top
+    unwatched_movies = unwatched_movies.join(movies_dataframe)
+
+    return unwatched_movies.head(10) #return top 10 movies
+
+print(make_recommendation(9))
 
 movies_dataframe.set_index("movieId", inplace = True)
 total_rating_count = ratings_dataframe["movieId"].value_counts()
 
 movies_dataframe["totalRatingCount"] = total_rating_count   #add total rating count column to movies dataframe
-#movies_dataframe.sort_values("totalRatingCount", ascending = False, inplace = True) #sort movies dataframe by total rating count
 
 average_movie_ratings = ratings_dataframe.groupby("movieId").mean()["rating"]
 movies_dataframe["averageRating"] = average_movie_ratings #add average rating column to movies dataframe
